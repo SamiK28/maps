@@ -1,7 +1,15 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+//import 'package:flutter_google_places/flutter_google_places.dart';
+//import 'package:google_maps_webservice/places.dart';
+import 'package:location/location.dart' as LocationManager;
+import "package:google_maps_webservice/places.dart";
+
+final String kGoogleApiKey = "AIzaSyCIEINhIghKi-l9mg9NxUX4YANayVxs4LM";
+final places = new GoogleMapsPlaces(apiKey: kGoogleApiKey);
+Map<MarkerId, Marker> markers = <MarkerId, Marker>{};
 
 void main() => runApp(MyApp());
 
@@ -21,80 +29,140 @@ class MapSample extends StatefulWidget {
 }
 
 class MapSampleState extends State<MapSample> {
-  GoogleMapController mapcontroller ;
-  Map<MarkerId, Marker> markers = <MarkerId, Marker>{};
+  Completer<GoogleMapController> _controller = Completer();
 
+  // GoogleMapsPlaces _places = GoogleMapsPlaces(apiKey: kGoogleApiKey);
+  String query = 'India Gate';
   static final CameraPosition _kGooglePlex = CameraPosition(
-    target: LatLng(37.42796133580664, -122.085749655962),
+    target: LatLng(28.6139, 77.2090),
     zoom: 14.4746,
   );
-static final LatLng center = const LatLng(-33.86711, 151.1947171);
+
   static final CameraPosition _kLake = CameraPosition(
-      bearing: 192.8334901395799,
-      target: LatLng(center.latitude,center.longitude),
-      tilt: 59.440717697143555,
-      zoom: 19.151926040649414);
+      bearing: 0.0, target: LatLng(26.8439, 75.5652), tilt: 0.0, zoom: 12.0);
 
+  Future<LatLng> getUserLocation() async {
+    // var currentLocation = LocationData;
+    // var location = new Location();
+    var currentLocation;
+    final location = LocationManager.Location();
+    try {
+      currentLocation = await location.getLocation();
+      Map<String, double> curr = jsonDecode(currentLocation.toString());
 
+      double lat = curr["latitude"];
+      double lng = curr["longitude"];
+      final center = LatLng(lat, lng);
+      return center;
+    } on Exception {
+      currentLocation = null;
+      return null;
+    }
+  }
 
-void _add() {
-    var markerIdVal = '12345';
-    final MarkerId markerId = MarkerId(markerIdVal);
+  Future<void> getl(search) async {
+    PlacesSearchResponse reponse =
+        await places.searchByText(search).then((value) async{
+      print(value.results.length);
+      final GoogleMapController controller = await _controller.future;
+      controller.animateCamera(CameraUpdate.newCameraPosition(CameraPosition(
+      bearing: 0.0, 
+      target: LatLng(value.results[0].geometry.location.lat,value.results[0].geometry.location.lng),
+      tilt: 0.0, 
+      zoom: 7.0)
+      ));
+
+      _add(value.results[0].name, value.results[0].geometry.location);
+  
+    });
+  }
+
+  TextEditingController _searchcontroller;
+  bool entered = false;
+  String title = 'Welcome';
+
+void _add(String mid,Location m) {
+    var markerIdVal = mid;
+     final MarkerId markerId = MarkerId(markerIdVal);
 
     // creating a new MARKER
     final Marker marker = Marker(
       markerId: markerId,
       position: LatLng(
-        center.latitude ,
-        center.longitude 
+        m.lat,m.lng
       ),
-      infoWindow: InfoWindow(title: markerIdVal, snippet: '*'),
+      infoWindow: InfoWindow(title: markerIdVal),
       onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (context)=>Page2()));
       },
     );
-
-    setState(() {
-      // adding a new marker to map
-      markers[markerId] = marker;
-    });
+      setState(() {
+        markers[markerId] = marker;
+      });
 }
   @override
   Widget build(BuildContext context) {
-    _add();
-    return new Scaffold(
+    //getl('Paris');
+    return Scaffold(
+      appBar: AppBar(
+        title: entered
+            ? TextField(
+                textCapitalization: TextCapitalization.words,
+                controller: _searchcontroller,
+                decoration: InputDecoration(hintText: 'Search Here'),
+                onSubmitted: (v) {
+                  title = v;
+                  getl(v);
+                  entered = !entered;
+                  setState(() {});
+                },
+              )
+            : Text(
+                title,
+                style: TextStyle(color: Colors.black),
+              ),
+        centerTitle: true,
+        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: Icon(
+            Icons.search,
+            color: Colors.black,
+          ),
+          onPressed: () {
+            entered = !entered;
+            setState(() {});
+          },
+        ),
+      ),
       body: GoogleMap(
         mapType: MapType.normal,
         initialCameraPosition: _kGooglePlex,
         onMapCreated: (GoogleMapController controller) {
-          mapcontroller=controller;
+          _controller.complete(controller);
         },
-        myLocationEnabled: true,
-        markers: Set<Marker>.of(markers.values),
+        markers: Set<Marker>.of(markers.values)
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: _goToTheLake,
-        child: Icon(Icons.directions_boat),
+        label: Text('To MUJ!'),
+        icon: Icon(Icons.school),
       ),
     );
+  }
+
+  Future<void> _themall() async {
+    final GoogleMapController controller = await _controller.future;
+    final center = await getUserLocation();
+    controller.animateCamera(CameraUpdate.newCameraPosition(
+        CameraPosition(target: LatLng(center.latitude, center.longitude))));
   }
 
   Future<void> _goToTheLake() async {
-    final GoogleMapController controller = mapcontroller;
+    final GoogleMapController controller = await _controller.future;
     controller.animateCamera(CameraUpdate.newCameraPosition(_kLake));
   }
-}
-class Page2 extends StatefulWidget {
-  @override
-  _Page2State createState() => _Page2State();
-}
 
-class _Page2State extends State<Page2> {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(child: Text('hello')),
-      
-    );
+  Future<void> _goToDesiredLocation() async {
+    final GoogleMapController controller = await _controller.future;
+    controller.animateCamera(CameraUpdate.newCameraPosition(_kLake));
   }
 }
