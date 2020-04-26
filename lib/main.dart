@@ -10,7 +10,7 @@ import 'package:location/location.dart' as LocationManager;
 import "package:google_maps_webservice/places.dart";
 import 'package:sliding_up_panel/sliding_up_panel.dart';
 
-final String kGoogleApiKey = "AIzaSyBShd19wL1Lj9-MDRkyzh1jr4fiuWQ_UIA";
+final String kGoogleApiKey = "api_key";
 final places = new GoogleMapsPlaces(apiKey: kGoogleApiKey);
 
 Map<MarkerId, Marker> markers = <MarkerId, Marker>{};
